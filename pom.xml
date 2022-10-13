@@ -5,8 +5,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>diarsid</groupId>
-    <artifactId>jfxmonthview</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <artifactId>desktop.ui.components.calendar</artifactId>
+    <version>1.0.0</version>
 
     <properties>
         <java.version>11</java.version>
@@ -52,6 +52,13 @@
             <version>1.0-SNAPSHOT</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.5.1</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -65,15 +72,6 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                     <showDeprecation>true</showDeprecation>
-                </configuration>
-            </plugin>
-
-            <plugin>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.3</version>
-                <configuration>
-                    <mainClass>diarsid.timebalancer.Main</mainClass>
                 </configuration>
             </plugin>
 

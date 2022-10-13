@@ -1,0 +1,129 @@
+.root {
+    -fx-background-color: transparent;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-inner-border: transparent;
+    -fx-body-color: transparent;
+    -fx-cell-focus-inner-border: transparent;
+    -fx-table-cell-border-color: transparent;
+}
+
+.tools .tool-button {
+    -fx-border-width: 1px;
+    -fx-border-color: lightgray;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 5px;
+    -fx-text-fill: darkgrey;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.month-view {
+    -fx-background-color: white;
+    -fx-spacing: 3px;
+}
+
+.month-view .months-menu {
+}
+
+.month-view .months-menu .current-month {
+}
+
+.month-view .months-menu .prev-month {
+    -fx-border-color: lightgray;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 5px;
+}
+
+.month-view .months-menu .next-month {
+    -fx-border-color: lightgray;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 5px;
+}
+
+.month-view .months-menu .prev-month:hover {
+    -fx-background-color: whitesmoke;
+}
+
+.month-view .months-menu .next-month:hover {
+    -fx-background-color: whitesmoke;
+}
+
+.month-view .day-name {
+    -fx-background-color: azure;
+}
+
+.month-view .day {
+    -fx-font-size: 15px;
+    -fx-border-width: 1px;
+    -fx-border-color: lightgray;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 5px;
+}
+
+.month-view .day:today {
+    -fx-border-color: dodgerblue;
+}
+
+.month-view .day:current-month {
+    -fx-background-color: white;
+
+}
+
+.month-view .day:current-month:hover {
+    -fx-background-color: whitesmoke;
+
+}
+
+.month-view .day:not-current-month {
+    -fx-background-color: lightgray;
+    -fx-text-fill: darkgrey;
+}
+
+.month-view .day:prev-month {
+}
+
+.month-view .day:next-month {
+}
+
+.month-view .day:applied {
+    -fx-background-color: limegreen;
+}
+
+.month-view .day:not-current-month:applied {
+     -fx-background-color: DarkSeaGreen;
+ }
+
+
+.year-view {
+    -fx-background-color: white;
+}
+
+.year-view .day-in-month {
+    -fx-padding: 2px;
+}
+
+.year-view .day {
+    -fx-background-color: white;
+    -fx-min-width: 8px;
+    -fx-border-width: 1px;
+    -fx-border-color: lightgray;
+    -fx-border-radius: 1px;
+    -fx-background-radius: 1px;
+}
+
+.year-view .day:today {
+     -fx-border-color: dodgerblue;
+}
+
+.year-view .day:in-future {
+    -fx-background-color: lightgray;
+}
+
+.year-view .day:in-past {
+    -fx-background-color: whitesmoke;
+}
+
+.year-view .day-in-month:month-focused {
+    -fx-background-color: whitesmoke;
+}
