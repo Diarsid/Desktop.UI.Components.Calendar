@@ -1,13 +1,13 @@
 package diarsid.desktop.ui.components.calendar.impl;
 
-import diarsid.desktop.ui.components.calendar.api.Calendar;
+import java.time.LocalDate;
+import java.time.Month;
+
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.Month;
+import diarsid.desktop.ui.components.calendar.api.Calendar;
 
 public class CalendarStateControl implements Calendar.State.Control {
 
@@ -24,26 +24,6 @@ public class CalendarStateControl implements Calendar.State.Control {
     @Override
     public ReadOnlyObjectProperty<LocalDate> property() {
         return date;
-    }
-
-    @Override
-    public int year() {
-        return date.get().getYear();
-    }
-
-    @Override
-    public Month month() {
-        return date.get().getMonth();
-    }
-
-    @Override
-    public int dayOfMonth() {
-        return date.get().getDayOfMonth();
-    }
-
-    @Override
-    public DayOfWeek dayOfWeek() {
-        return date.get().getDayOfWeek();
     }
 
     @Override

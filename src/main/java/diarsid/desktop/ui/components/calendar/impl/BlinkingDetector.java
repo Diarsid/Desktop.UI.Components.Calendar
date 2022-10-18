@@ -42,7 +42,7 @@ public class BlinkingDetector {
             boolean blinking =
                     c4.value == c2.value &&
                     c3.value == c1.value &&
-                    millisDiff < 10;
+                    millisDiff < 60;
 
             if ( blinking ) {
                 this.onBlinkingDetected.run();

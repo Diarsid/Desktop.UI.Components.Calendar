@@ -8,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import diarsid.desktop.ui.components.calendar.api.Calendar;
-import diarsid.desktop.ui.components.calendar.api.TooltipsByDate;
 import javafx.application.Platform;
 import javafx.beans.property.DoubleProperty;
 import javafx.beans.property.ObjectProperty;
@@ -22,7 +20,8 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 
-import diarsid.support.javafx.pseudoclasses.PseudoClassesBoundTo;
+import diarsid.desktop.ui.components.calendar.api.Calendar;
+import diarsid.support.javafx.css.pseudoclasses.PseudoClassesBoundTo;
 
 public class YearViewImpl implements Calendar.YearView {
 
@@ -108,12 +107,15 @@ public class YearViewImpl implements Calendar.YearView {
     private final Map<LocalDate, Day> daysByDates;
     private final Map<Month, List<Day>> daysByMonths;
     private final Map<Integer, Day> daysByYearIndex;
-    private final TooltipsByDateImpl tooltipsByDate;
+    private final DayInfoTooltipBinding dayInfoTooltipBinding;
     private final Function<LocalDate, String> defaultTooltipText;
     private final MidnightTimer midnightTimer;
 
     public YearViewImpl(
             Calendar.State.Control calendarState,
+            diarsid.desktop.ui.components.calendar.api.Day.Info.Control dayInfoControl,
+            diarsid.desktop.ui.components.calendar.api.Day.Info.Repository dayInfoRepository,
+            diarsid.desktop.ui.components.calendar.api.Day.MouseCallback mouseCallback,
             PseudoClassesBoundTo<LocalDate> pseudoClassesByDates,
             Function<LocalDate, String> defaultTooltipText) {
         this.calendarStateControl = calendarState;
@@ -124,7 +126,7 @@ public class YearViewImpl implements Calendar.YearView {
         this.daysByDates = new HashMap<>();
         this.daysByMonths = new HashMap<>();
         this.daysByYearIndex = new HashMap<>();
-        this.tooltipsByDate = new TooltipsByDateImpl(new HashMap<>(), new HashMap<>());
+        this.dayInfoTooltipBinding = (DayInfoTooltipBinding) dayInfoControl;
 
         int year = calendarState.year();
         List<Node> viewChildren = this.view.getChildren();
@@ -188,22 +190,13 @@ public class YearViewImpl implements Calendar.YearView {
     }
 
     private void bindTooltipsToDates() {
-        this.daysByDates.forEach((key, value) -> this.tooltipsByDate.bind(key, value.label.getTooltip()));
-    }
-
-    @Override
-    public Calendar.State.Control control() {
-        return this.calendarStateControl;
+        this.daysByDates.forEach((date, day) -> this.dayInfoTooltipBinding.bind(date, day.label.getTooltip()));
+        System.out.println("YEAR VIEW tooltips bounded");
     }
 
     @Override
     public Region node() {
         return this.view;
-    }
-
-    @Override
-    public TooltipsByDate tooltipsByDate() {
-        return this.tooltipsByDate;
     }
 
     private void fillInJavaFXThread() {
@@ -219,7 +212,7 @@ public class YearViewImpl implements Calendar.YearView {
         System.out.println("Year::fill");
         this.daysByDates.clear();
         this.daysByMonths.forEach((month, days) -> days.clear());
-        this.tooltipsByDate.unbindAll();
+        this.dayInfoTooltipBinding.unbindAll();
         List<Node> viewChildren = this.view.getChildren();
         viewChildren.clear();
         LocalDate today = LocalDate.now();

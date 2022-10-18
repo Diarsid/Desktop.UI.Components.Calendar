@@ -21,6 +21,8 @@
 .month-view {
     -fx-background-color: white;
     -fx-spacing: 3px;
+    /*-fx-min-width: 400;*/
+    /*-fx-min-height: 400;*/
 }
 
 .month-view .months-menu {
@@ -51,6 +53,14 @@
 
 .month-view .day-name {
     -fx-background-color: azure;
+    -fx-border-width: 1px;
+    -fx-border-color: skyblue;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 5px;
+    /*-fx-min-height: 40;*/
+    /*-fx-max-height: 40;*/
+    /*-fx-min-width: 40;*/
+    /*-fx-max-width: 40;*/
 }
 
 .month-view .day {
@@ -59,6 +69,10 @@
     -fx-border-color: lightgray;
     -fx-border-radius: 4px;
     -fx-background-radius: 5px;
+    /*-fx-min-height: 40;*/
+    /*-fx-max-height: 40;*/
+    /*-fx-min-width: 40;*/
+    /*-fx-max-width: 40;*/
 }
 
 .month-view .day:today {
@@ -117,11 +131,11 @@
 }
 
 .year-view .day:in-future {
-    -fx-background-color: lightgray;
+    -fx-background-color: whitesmoke;
 }
 
 .year-view .day:in-past {
-    -fx-background-color: whitesmoke;
+    -fx-background-color: lightgray;
 }
 
 .year-view .day-in-month:month-focused {
