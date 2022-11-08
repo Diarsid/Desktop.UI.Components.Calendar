@@ -3,13 +3,13 @@ package diarsid.desktop.ui.components.calendar.api;
 import java.time.LocalDate;
 import java.time.Year;
 import java.time.YearMonth;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
-import diarsid.desktop.ui.components.calendar.impl.DayInfoTooltipBinding;
+import diarsid.desktop.ui.components.calendar.impl.DayInfoCachedState;
+import diarsid.support.javafx.mouse.ClickType;
 import diarsid.support.objects.references.Possible;
 
 public interface Day {
@@ -21,6 +21,8 @@ public interface Day {
         Possible<String> header();
 
         Possible<List<String>> content();
+
+        Possible<ToString> customToString();
 
         interface ToString extends Function<Day.Info, String> {
 
@@ -35,36 +37,33 @@ public interface Day {
             Map<LocalDate, Day.Info> findAllBy(Year year);
 
             /*
-             * logic to be overridden if updates made by Day.Info.Control.set() need to be persisted in some
+             * logic to be overridden if updates made by Day.Info.Control.set(...) need to be persisted in some
              * underlying storage.
              * This method is not mandatory to be implemented if there is no need to save such changes.
              * */
             default boolean update(Day.Info dayInfo) {
-                return true;
+                return false;
             }
         }
 
         interface Control {
 
-            static Day.Info.Control newDayInfoControl(Day.Info.ToString toString) {
-                return new DayInfoTooltipBinding(new HashMap<>(), new HashMap<>(), toString);
+            static Day.Info.Control newDayInfoControl(Day.Info.Repository repository) {
+                return new DayInfoCachedState(repository);
             }
-
-            void set(LocalDate date, String text);
 
             void set(Day.Info dayInfo);
 
+            void refresh(Year year);
+
+            void refresh(YearMonth month);
+
+            void refresh(LocalDate date);
         }
     }
 
     interface MouseCallback {
 
-        default void onSingleClick(LocalDate date, Optional<Day.Info> dayInfo) {
-            // to be overridden
-        }
-
-        default void onMultiClick(LocalDate date, Optional<Day.Info> dayInfo) {
-            // to be overridden
-        }
+        void onClick(ClickType clickType, LocalDate date, Optional<Day.Info> dayInfo) ;
     }
 }

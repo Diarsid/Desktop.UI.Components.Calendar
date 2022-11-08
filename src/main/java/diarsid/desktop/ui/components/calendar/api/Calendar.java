@@ -10,6 +10,7 @@ import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.scene.layout.Region;
 
 import diarsid.desktop.ui.components.calendar.impl.CalendarStateControl;
+import diarsid.desktop.ui.components.calendar.impl.DayInfoCachedState;
 import diarsid.desktop.ui.components.calendar.impl.MonthViewImpl;
 import diarsid.desktop.ui.components.calendar.impl.YearViewImpl;
 import diarsid.support.javafx.components.Visible;
@@ -22,7 +23,6 @@ public interface Calendar {
         static MonthView newMonthView(
                 Calendar.State.Control calendarStateControl,
                 Day.Info.Control dayInfoControl,
-                Day.Info.Repository dayInfoRepository,
                 Day.Info.ToString dayInfoToString,
                 Day.MouseCallback mouseCallback,
                 DayOfWeek firstDayOfWeek,
@@ -30,8 +30,8 @@ public interface Calendar {
                 Function<LocalDate, String> defaultTooltipText) {
             return new MonthViewImpl(
                     calendarStateControl,
-                    dayInfoControl,
-                    dayInfoRepository,
+                    (DayInfoCachedState) dayInfoControl,
+                    dayInfoToString,
                     mouseCallback,
                     firstDayOfWeek,
                     pseudoClassesByDates,
@@ -47,15 +47,14 @@ public interface Calendar {
         static YearView newYearView(
                 Calendar.State.Control calendarStateControl,
                 Day.Info.Control dayInfoControl,
-                Day.Info.Repository dayInfoRepository,
                 Day.Info.ToString dayInfoToString,
                 Day.MouseCallback mouseCallback,
                 PseudoClassesBoundTo<LocalDate> pseudoClassesByDates,
                 Function<LocalDate, String> defaultTooltipText) {
             return new YearViewImpl(
                     calendarStateControl,
-                    dayInfoControl,
-                    dayInfoRepository,
+                    (DayInfoCachedState) dayInfoControl,
+                    dayInfoToString,
                     mouseCallback,
                     pseudoClassesByDates,
                     defaultTooltipText);

@@ -2,10 +2,13 @@ package diarsid.desktop.ui.components.calendar.impl;
 
 import java.time.LocalDate;
 import java.time.Month;
+import java.time.Year;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 import javafx.application.Platform;
@@ -21,25 +24,32 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 
 import diarsid.desktop.ui.components.calendar.api.Calendar;
+import diarsid.desktop.ui.components.calendar.api.Day;
 import diarsid.support.javafx.css.pseudoclasses.PseudoClassesBoundTo;
+import diarsid.support.javafx.mouse.ClickTypeDetector;
 
-public class YearViewImpl implements Calendar.YearView {
+import static java.util.Objects.nonNull;
+
+public class YearViewImpl implements Calendar.YearView, DayInfoState.ChangesListener {
 
     public static final PseudoClass IN_FUTURE = PseudoClass.getPseudoClass("in-future");
     public static final PseudoClass IN_PAST = PseudoClass.getPseudoClass("in-past");
     public static final PseudoClass TODAY = PseudoClass.getPseudoClass("today");
     public static final PseudoClass MONTH_FOCUSED = PseudoClass.getPseudoClass("month-focused");
 
-    public static class Day extends HBox {
+    public static class DayInYear extends HBox {
 
-        private final YearViewImpl view;
         private final Label label;
         private final ObjectProperty<LocalDate> date;
+        private final YearViewImpl view;
+        private final ClickTypeDetector clickTypeDetector;
 
-        public Day(LocalDate date, YearViewImpl view) {
+        public DayInYear(
+                LocalDate date,
+                YearViewImpl view) {
+            this.label = new Label();
             this.date = new SimpleObjectProperty<>(date);
             this.view = view;
-            this.label = new Label();
 
             super.getChildren().add(this.label);
             super.getStyleClass().add("day-in-month");
@@ -52,26 +62,57 @@ public class YearViewImpl implements Calendar.YearView {
             this.label.maxHeightProperty().bind(width);
 
             this.hoverProperty().addListener((p, oldValue, newValue) -> {
-                boolean hover = newValue || this.label.hoverProperty().get();
-                this.hoverChanged(hover);
-            });
-
-            this.label.hoverProperty().addListener((p, oldValue, newValue) -> {
                 boolean hover = newValue || super.hoverProperty().get();
                 this.hoverChanged(hover);
             });
 
-            Tooltip tooltip = new Tooltip();
-            tooltip.setText(this.view.defaultTooltipText.apply(this.date.get()));
-            this.label.setTooltip(tooltip);
-
-            this.date.addListener((p, oldValue, newValue) -> {
-                tooltip.setText(this.view.defaultTooltipText.apply(newValue));
+            super.hoverProperty().addListener((p, oldValue, newValue) -> {
+                boolean hover = newValue || super.hoverProperty().get();
+                this.hoverChanged(hover);
             });
+
+
+            Tooltip tooltip = new Tooltip();
+            this.label.setTooltip(tooltip);
+            this.fillTooltipText(this.date.get());
+
+            this.date.addListener((prop, oldV, newV) -> {
+                this.fillTooltipText(newV);
+            });
+
+            this.clickTypeDetector = ClickTypeDetector.Builder.createFor(this)
+                    .withDoOnAll((clickType, event) -> {
+                        LocalDate currentDate = this.date.get();
+                        this.view.mouseCallback.onClick(
+                                clickType,
+                                currentDate,
+                                this.view.dayInfoState.findDayInfoOf(currentDate));
+                    })
+                    .build();
         }
 
-        public void dateTo(LocalDate date) {
-            this.date.set(date);
+        private void fillTooltipText(LocalDate date) {
+            Optional<Day.Info> dayInfoLoaded = this.view.dayInfoState.findDayInfoOf(date);
+
+            String text;
+            if ( dayInfoLoaded.isPresent() ) {
+                var dayInfo = dayInfoLoaded.get();
+                if ( dayInfo.customToString().isPresent() ) {
+                    text = dayInfo.customToString().get().apply(dayInfo);
+                }
+                else {
+                    text = this.view.dayInfoToString.apply(dayInfo);
+                }
+            }
+            else {
+                text = this.view.defaultTooltipText.apply(date);
+            }
+
+            this.label.getTooltip().setText(text);
+        }
+
+        void refresh() {
+            this.fillTooltipText(this.date.get());
         }
 
         public void todayStyle() {
@@ -93,7 +134,11 @@ public class YearViewImpl implements Calendar.YearView {
         }
 
         private void hoverChanged(boolean value) {
-            this.view.daysByMonths.get(this.date.get().getMonth()).forEach(day -> day.monthFocused(value));
+            Month month = this.date.get().getMonth();
+            this.view
+                    .daysByMonths
+                    .get(month)
+                    .forEach(day -> day.monthFocused(value));
         }
 
         private void monthFocused(boolean value) {
@@ -102,33 +147,41 @@ public class YearViewImpl implements Calendar.YearView {
     }
 
     private final Calendar.State.Control calendarStateControl;
+    private final DayInfoState dayInfoState;
+    private final Day.Info.ToString dayInfoToString;
+    private final Day.MouseCallback mouseCallback;
     private final PseudoClassesBoundTo<LocalDate> pseudoClassesByDates;
     private final FlowPane view;
-    private final Map<LocalDate, Day> daysByDates;
-    private final Map<Month, List<Day>> daysByMonths;
-    private final Map<Integer, Day> daysByYearIndex;
-    private final DayInfoTooltipBinding dayInfoTooltipBinding;
+    private final ByDatesHolder<DayInYear> daysByDates;
+    private final Map<Month, List<DayInYear>> daysByMonths;
+    private final Map<Integer, DayInYear> daysByYearIndex;
     private final Function<LocalDate, String> defaultTooltipText;
     private final MidnightTimer midnightTimer;
 
     public YearViewImpl(
             Calendar.State.Control calendarState,
-            diarsid.desktop.ui.components.calendar.api.Day.Info.Control dayInfoControl,
-            diarsid.desktop.ui.components.calendar.api.Day.Info.Repository dayInfoRepository,
-            diarsid.desktop.ui.components.calendar.api.Day.MouseCallback mouseCallback,
+            DayInfoState dayInfoState,
+            Day.Info.ToString dayInfoToString,
+            Day.MouseCallback mouseCallback,
             PseudoClassesBoundTo<LocalDate> pseudoClassesByDates,
             Function<LocalDate, String> defaultTooltipText) {
         this.calendarStateControl = calendarState;
+        this.dayInfoState = dayInfoState;
+        this.dayInfoToString = dayInfoToString;
+        this.mouseCallback = mouseCallback;
         this.pseudoClassesByDates = pseudoClassesByDates;
         this.defaultTooltipText = defaultTooltipText;
+        dayInfoState.add(this);
 
         this.view = new FlowPane();
-        this.daysByDates = new HashMap<>();
+        this.daysByDates = new ByDatesHolder<>();
         this.daysByMonths = new HashMap<>();
         this.daysByYearIndex = new HashMap<>();
-        this.dayInfoTooltipBinding = (DayInfoTooltipBinding) dayInfoControl;
 
         int year = calendarState.year();
+
+        this.dayInfoState.load(year);
+
         List<Node> viewChildren = this.view.getChildren();
 
         for ( Month month : Month.values() ) {
@@ -138,7 +191,7 @@ public class YearViewImpl implements Calendar.YearView {
         LocalDate today = LocalDate.now();
         LocalDate firstDayOfMonth;
         LocalDate dayDate;
-        Day day;
+        DayInYear day;
         int daysInMonth;
         int dayInYear = 1;
         for ( Month month : Month.values() ) {
@@ -147,7 +200,7 @@ public class YearViewImpl implements Calendar.YearView {
 
             for ( int dayInMonth = 1; dayInMonth <= daysInMonth; dayInMonth++) {
                 dayDate = LocalDate.of(year, month, dayInMonth);
-                day = new Day(dayDate, this);
+                day = new DayInYear(dayDate, this);
 
                 viewChildren.add(day);
 
@@ -171,9 +224,9 @@ public class YearViewImpl implements Calendar.YearView {
 
         this.view.getStyleClass().add("year-view");
 
-        this.calendarStateControl.property().addListener((p, oldValue, newValue) -> {
-            int oldYear = oldValue.getYear();
-            int newYear = newValue.getYear();
+        this.calendarStateControl.property().addListener((p, oldDate, newDate) -> {
+            int oldYear = oldDate.getYear();
+            int newYear = newDate.getYear();
 
             if ( oldYear != newYear ) {
                 this.fill();
@@ -181,17 +234,32 @@ public class YearViewImpl implements Calendar.YearView {
             }
         });
 
-        this.bindTooltipsToDates();
-
         String timerThreadName = this.getClass().getCanonicalName() + "." + MidnightTimer.class.getSimpleName();
         this.midnightTimer = new MidnightTimer(
                 timerThreadName,
                 this::fillInJavaFXThread);
     }
 
-    private void bindTooltipsToDates() {
-        this.daysByDates.forEach((date, day) -> this.dayInfoTooltipBinding.bind(date, day.label.getTooltip()));
-        System.out.println("YEAR VIEW tooltips bounded");
+    @Override
+    public void onChange(LocalDate date) {
+        DayInYear day = this.daysByDates.findOrNull(date);
+        if ( nonNull(day) ) {
+            day.refresh();
+        }
+    }
+
+    @Override
+    public void onChange(YearMonth month) {
+        this.daysByDates
+                .findBy(month)
+                .forEach(DayInYear::refresh);
+    }
+
+    @Override
+    public void onChange(Year year) {
+        this.daysByDates
+                .findBy(year)
+                .forEach(DayInYear::refresh);
     }
 
     @Override
@@ -212,7 +280,7 @@ public class YearViewImpl implements Calendar.YearView {
         System.out.println("Year::fill");
         this.daysByDates.clear();
         this.daysByMonths.forEach((month, days) -> days.clear());
-        this.dayInfoTooltipBinding.unbindAll();
+
         List<Node> viewChildren = this.view.getChildren();
         viewChildren.clear();
         LocalDate today = LocalDate.now();
@@ -220,10 +288,11 @@ public class YearViewImpl implements Calendar.YearView {
         this.view.maxWidthProperty();
 
         int year = calendarStateControl.year();
+        this.dayInfoState.load(year);
 
         LocalDate firstDayOfMonth;
         LocalDate dayDate;
-        Day day;
+        DayInYear day;
         int daysInMonth;
         int dayInYear = 1;
         for ( Month month : Month.values() ) {
@@ -235,7 +304,7 @@ public class YearViewImpl implements Calendar.YearView {
                 day = this.daysByYearIndex.get(dayInYear);
 
                 if ( day == null ) {
-                    day = new Day(dayDate, this);
+                    day = new DayInYear(dayDate, this);
                     this.daysByYearIndex.put(dayInYear, day);
                 }
 
@@ -249,7 +318,7 @@ public class YearViewImpl implements Calendar.YearView {
                     day.pastStyle();
                 }
 
-                day.dateTo(dayDate);
+                day.date.set(dayDate);
                 this.daysByDates.put(dayDate, day);
                 this.daysByMonths.get(month).add(day);
                 viewChildren.add(day);
@@ -258,7 +327,6 @@ public class YearViewImpl implements Calendar.YearView {
             }
         }
 
-        this.bindTooltipsToDates();
         System.out.println("Year::filled");
     }
 }

@@ -2,6 +2,7 @@ package diarsid.desktop.ui.components.calendar.impl;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.Year;
 import java.time.YearMonth;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 import javafx.application.Platform;
@@ -19,7 +21,6 @@ import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.css.PseudoClass;
 import javafx.scene.control.Label;
-import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
@@ -30,9 +31,10 @@ import javafx.scene.text.Font;
 
 import diarsid.desktop.ui.components.calendar.api.Calendar;
 import diarsid.desktop.ui.components.calendar.api.Dates;
-import diarsid.support.javafx.components.Labeled;
+import diarsid.desktop.ui.components.calendar.api.Day;
 import diarsid.support.javafx.css.pseudoclasses.PseudoClassAppliedTo;
 import diarsid.support.javafx.css.pseudoclasses.PseudoClassesBoundTo;
+import diarsid.support.javafx.mouse.ClickTypeDetector;
 import diarsid.support.objects.references.Possible;
 
 import static java.time.DayOfWeek.FRIDAY;
@@ -42,13 +44,14 @@ import static java.time.DayOfWeek.SUNDAY;
 import static java.time.DayOfWeek.THURSDAY;
 import static java.time.DayOfWeek.TUESDAY;
 import static java.time.DayOfWeek.WEDNESDAY;
+import static java.util.Objects.nonNull;
 
 import static javafx.geometry.Pos.CENTER;
 import static javafx.scene.layout.Priority.ALWAYS;
 
 import static diarsid.support.objects.references.References.simplePossibleButEmpty;
 
-public class MonthViewImpl implements Calendar.MonthView {
+public class MonthViewImpl implements Calendar.MonthView, DayInfoState.ChangesListener {
 
     public static final Map<DayOfWeek, String> SHORT_NAMES_BY_DAYS;
     public static final PseudoClass PREVIOUS_MONTH = PseudoClass.getPseudoClass("prev-month");
@@ -68,41 +71,39 @@ public class MonthViewImpl implements Calendar.MonthView {
         SHORT_NAMES_BY_DAYS.put(SUNDAY, "Su");
     }
 
-    public static class Day extends Labeled<LocalDate> {
+    private static class DayInMonth extends LabelTooltipDay {
 
-        private static final Function<LocalDate, String> DATE_TO_DAY = date -> String.valueOf(date.getDayOfMonth());
+        private static final Function<LocalDate, String> DATE_TO_LABEL_STRING = date -> String.valueOf(date.getDayOfMonth());
 
-        private final Function<LocalDate, String> defaultTooltipText;
+        private final ClickTypeDetector clickTypeDetector;
+        private final Day.MouseCallback clickCallback;
         private boolean isToday;
 
-        public Day(LocalDate date, Function<LocalDate, String> defaultTooltipText) {
-            super(date, DATE_TO_DAY);
-            this.defaultTooltipText = defaultTooltipText;
+        private DayInMonth(
+                YearMonth yearMonth,
+                int day,
+                Function<LocalDate, String> defaultTooltipText,
+                Function<LocalDate, Optional<Day.Info>> dayInfoByDate,
+                Day.Info.ToString dayInfoToString,
+                Day.MouseCallback callback
+                ) {
+            super(
+                    LocalDate.of(yearMonth.getYear(), yearMonth.getMonth(), day),
+                    DATE_TO_LABEL_STRING,
+                    dayInfoByDate,
+                    defaultTooltipText,
+                    dayInfoToString);
+            this.clickCallback = callback;
 
-            super.setTooltip(new Tooltip(this.defaultTooltipText.apply(date)));
-
-            super.property().addListener((prop, oldValue, newValue) -> {
-                var textProperty = super.getTooltip().textProperty();
-                if ( textProperty.isBound() ) {
-                    return;
-                }
-                textProperty.set(this.defaultTooltipText.apply(newValue));
-            });
-        }
-
-        public Day(YearMonth yearMonth, int day, Function<LocalDate, String> defaultTooltipText) {
-            super(LocalDate.of(yearMonth.getYear(), yearMonth.getMonth(), day), DATE_TO_DAY);
-            this.defaultTooltipText = defaultTooltipText;
-
-            super.setTooltip(new Tooltip(this.defaultTooltipText.apply(this.date())));
-
-            super.property().addListener((prop, oldValue, newValue) -> {
-                var textProperty = super.getTooltip().textProperty();
-                if ( textProperty.isBound() ) {
-                    return;
-                }
-                textProperty.set(this.defaultTooltipText.apply(newValue));
-            });
+            this.clickTypeDetector = ClickTypeDetector
+                    .Builder
+                    .createFor(this)
+                    .withDoOnAll((clickType, event) -> {
+                        LocalDate date = this.property().get();
+                        Optional<Day.Info> dayInfo = dayInfoByDate.apply(date);
+                        this.clickCallback.onClick(clickType, date, dayInfo);
+                    })
+                    .build();
         }
 
         public LocalDate date() {
@@ -147,14 +148,12 @@ public class MonthViewImpl implements Calendar.MonthView {
     public final VBox view;
     private final GridPane grid;
     private final Map<DayOfWeek, Integer> positionByDays;
-    private final Day[][] days;
-    private final Map<LocalDate, Day> daysByDates;
-    private final Possible<Day> currentToday;
+    private final DayInMonth[][] daysStaticGrid;
+    private final ByDatesHolder<DayInMonth> daysByDates;
+    private final Possible<DayInMonth> currentToday;
     private final Label monthYearLabel;
-    private final List<PseudoClassAppliedTo<Day>> appliedPseudoClasses;
+    private final List<PseudoClassAppliedTo<DayInMonth>> appliedPseudoClasses;
     private final PseudoClassesBoundTo<LocalDate> pseudoClassesByDates;
-    private final DayInfoTooltipBinding dayInfoTooltipBinding;
-    private final Function<LocalDate, String> defaultTooltipText;
     private final MidnightTimer midnightTimer;
 
     private final Calendar.State.Control calendarStateControl;
@@ -164,9 +163,9 @@ public class MonthViewImpl implements Calendar.MonthView {
 
     public MonthViewImpl(
             Calendar.State.Control calendarStateControl,
-            diarsid.desktop.ui.components.calendar.api.Day.Info.Control dayInfoControl,
-            diarsid.desktop.ui.components.calendar.api.Day.Info.Repository dayInfoRepository,
-            diarsid.desktop.ui.components.calendar.api.Day.MouseCallback mouseCallback,
+            DayInfoState dayInfoState,
+            Day.Info.ToString dayInfoToString,
+            Day.MouseCallback mouseCallback,
             DayOfWeek firstDayOfWeek,
             PseudoClassesBoundTo<LocalDate> pseudoClassesByDates,
             Function<LocalDate, String> defaultTooltipText) {
@@ -174,13 +173,7 @@ public class MonthViewImpl implements Calendar.MonthView {
         this.currMonth = calendarStateControl.yearMonth();
         this.prevMonth = this.currMonth.minusMonths(1);
         this.nextMonth = this.currMonth.plusMonths(1);
-
-        this.calendarStateControl.property().addListener((p, oldV, newV) -> {
-            this.currMonth = YearMonth.of(newV.getYear(), newV.getMonth());
-            this.prevMonth = this.currMonth.minusMonths(1);
-            this.nextMonth = this.currMonth.plusMonths(1);
-            this.fill();
-        });
+        dayInfoState.add(this);
 
         this.view = new VBox();
         final ReadOnlyDoubleProperty spacing = this.view.spacingProperty();
@@ -226,18 +219,19 @@ public class MonthViewImpl implements Calendar.MonthView {
         this.grid.vgapProperty().bind(spacing);
         this.grid.hgapProperty().bind(spacing);
 
-        this.days = new Day[6][7];
-        this.daysByDates = new HashMap<>();
+        this.daysStaticGrid = new DayInMonth[6][7];
+        this.daysByDates = new ByDatesHolder<>();
         this.currentToday = simplePossibleButEmpty();
         this.pseudoClassesByDates = pseudoClassesByDates;
-        this.dayInfoTooltipBinding = (DayInfoTooltipBinding) dayInfoControl;
-        this.defaultTooltipText = defaultTooltipText;
         this.appliedPseudoClasses = new ArrayList<>();
 
         Map<Integer, DayOfWeek> daysByPosition = new HashMap<>();
         this.positionByDays = new HashMap<>();
 
         ReadOnlyDoubleProperty viewWidth = this.view.minWidthProperty();
+        this.grid.minWidthProperty().bind(viewWidth);
+        this.grid.maxWidthProperty().bind(viewWidth);
+
         final DoubleProperty gridCellWidth = new SimpleDoubleProperty();
         final DoubleProperty gridCellHeight = new SimpleDoubleProperty();
         final ObjectProperty<Font> font = new SimpleObjectProperty<>();
@@ -294,10 +288,16 @@ public class MonthViewImpl implements Calendar.MonthView {
                 continue;
             }
 
-            Day day;
+            DayInMonth day;
             for (int gridCol = 0; gridCol <= 6; gridCol++) {
                 if ( gridRow == firstWeekRow && prevMonthDaysRemnant > 0 ) {
-                    day = new Day(this.prevMonth, prevMonthDaysIndex, this.defaultTooltipText);
+                    day = new DayInMonth(
+                            this.prevMonth,
+                            prevMonthDaysIndex,
+                            defaultTooltipText,
+                            dayInfoState::findDayInfoOf,
+                            dayInfoToString,
+                            mouseCallback);
                     day.prevMonthStyle();
                     day.setIsToday(today);
 
@@ -306,14 +306,26 @@ public class MonthViewImpl implements Calendar.MonthView {
                 }
                 else {
                     if ( currMonthDaysIndex <= maxDays ) {
-                        day = new Day(this.currMonth, currMonthDaysIndex, this.defaultTooltipText);
+                        day = new DayInMonth(
+                                this.currMonth,
+                                currMonthDaysIndex,
+                                defaultTooltipText,
+                                dayInfoState::findDayInfoOf,
+                                dayInfoToString,
+                                mouseCallback);
                         day.currentMonthStyle();
                         day.setIsToday(today);
 
                         currMonthDaysIndex++;
                     }
                     else {
-                        day = new Day(nextMonth, nextMonthDaysIndex, this.defaultTooltipText);
+                        day = new DayInMonth(
+                                this.nextMonth,
+                                nextMonthDaysIndex,
+                                defaultTooltipText,
+                                dayInfoState::findDayInfoOf,
+                                dayInfoToString,
+                                mouseCallback);
                         day.nextMonthStyle();
                         day.setIsToday(today);
 
@@ -331,6 +343,7 @@ public class MonthViewImpl implements Calendar.MonthView {
                     });
 
                     gridCellWidth.addListener((p, o, n) -> {
+                        System.out.println("grid cell width: " + n);
                     });
                     gridCellHeight.addListener((p, o, n) -> {
                     });
@@ -341,7 +354,7 @@ public class MonthViewImpl implements Calendar.MonthView {
                 }
 
                 daysByDates.put(day.date(), day);
-                days[gridRow-firstWeekRow][gridCol] = day;
+                daysStaticGrid[gridRow-firstWeekRow][gridCol] = day;
 
                 day.getStyleClass().add("day");
                 day.setAlignment(CENTER);
@@ -356,8 +369,6 @@ public class MonthViewImpl implements Calendar.MonthView {
         }
 
         this.applyGivenPseudoClasses();
-        this.bindTooltipsToDates();
-
 
         BorderPane dateInfo = new BorderPane();
         Label prevButton = new Label();
@@ -405,6 +416,18 @@ public class MonthViewImpl implements Calendar.MonthView {
         this.midnightTimer = new MidnightTimer(
                 timerThreadName,
                 this::fillInJavaFXThread);
+
+        dayInfoState.load(this.prevMonth, this.currMonth, this.nextMonth);
+
+        this.calendarStateControl.property().addListener((p, oldV, newV) -> {
+            this.currMonth = YearMonth.of(newV.getYear(), newV.getMonth());
+            this.prevMonth = this.currMonth.minusMonths(1);
+            this.nextMonth = this.currMonth.plusMonths(1);
+
+            dayInfoState.load(this.prevMonth, this.currMonth, this.nextMonth);
+
+            this.fill();
+        });
     }
 
     private void fillInJavaFXThread() {
@@ -417,18 +440,34 @@ public class MonthViewImpl implements Calendar.MonthView {
     }
 
     @Override
+    public void onChange(LocalDate date) {
+        DayInMonth day = this.daysByDates.findOrNull(date);
+        if ( nonNull(day) ) {
+            day.refresh();
+        }
+    }
+
+    @Override
+    public void onChange(YearMonth month) {
+        this.daysByDates
+                .findBy(month)
+                .forEach(DayInMonth::refresh);
+    }
+
+    @Override
+    public void onChange(Year year) {
+        this.daysByDates
+                .findBy(year)
+                .forEach(DayInMonth::refresh);
+    }
+
+    @Override
     public Region node() {
         return this.view;
     }
 
-    private void bindTooltipsToDates() {
-        this.daysByDates.forEach((date, day) -> this.dayInfoTooltipBinding.bind(date, day.getTooltip()));
-        System.out.println("MONTH VIEW tooltips bounded");
-    }
-
     private void fill() {
         daysByDates.clear();
-        dayInfoTooltipBinding.unbindAll();
         this.revertGivenPseudoClasses();
 
         LocalDate firstDay = Dates.firstDayOf(currMonth);
@@ -443,10 +482,10 @@ public class MonthViewImpl implements Calendar.MonthView {
         int maxDays = firstDay.lengthOfMonth();
         LocalDate today = LocalDate.now();
 
-        Day day;
+        DayInMonth day;
         for (int w = 1; w <= 6; w++) {
             for (int d = 1; d <= 7; d++) {
-                day = days[w-1][d-1];
+                day = daysStaticGrid[w-1][d-1];
 
                 if ( w == 1 && prevMonthDaysRemnant > 0 ) {
                     day.dateTo(prevMonth, prevMonthDaysIndex);
@@ -482,7 +521,6 @@ public class MonthViewImpl implements Calendar.MonthView {
         }
 
         this.applyGivenPseudoClasses();
-        this.bindTooltipsToDates();
 
         this.monthYearLabel.setText(currMonth.getMonth().getDisplayName(TextStyle.FULL, Locale.getDefault()) + " " + currMonth.getYear());
     }
@@ -494,7 +532,7 @@ public class MonthViewImpl implements Calendar.MonthView {
 
     private void applyGivenPseudoClasses() {
         pseudoClassesByDates.forEach((date, pseudoClasses) -> {
-            Day dayByDate = daysByDates.get(date);
+            DayInMonth dayByDate = daysByDates.findOrNull(date);
             if ( dayByDate != null ) {
                 pseudoClasses.forEach((pseudoClass, active) -> {
                     dayByDate.pseudoClassStateChanged(pseudoClass, active);
