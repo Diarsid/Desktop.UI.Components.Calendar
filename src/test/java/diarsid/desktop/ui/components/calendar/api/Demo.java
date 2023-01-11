@@ -24,7 +24,7 @@ import javafx.stage.StageStyle;
 
 import diarsid.desktop.ui.components.calendar.api.defaultimpl.DayInfo;
 import diarsid.desktop.ui.components.calendar.api.defaultimpl.DayInfoToString;
-import diarsid.support.javafx.PlatformStartup;
+import diarsid.support.javafx.PlatformActions;
 import diarsid.support.javafx.css.pseudoclasses.PseudoClassesBoundTo;
 
 import static java.lang.String.format;
@@ -55,9 +55,9 @@ public class Demo {
     };
 
     public static void main(String[] args) throws Exception {
-        PlatformStartup.await();
-        DoubleProperty width = new SimpleDoubleProperty(400);
-        DoubleProperty height = new SimpleDoubleProperty(400);
+        PlatformActions.awaitStartup();
+//        DoubleProperty width = new SimpleDoubleProperty(400);
+//        DoubleProperty height = new SimpleDoubleProperty(400);
         AtomicReference<Stage> stageRef = new AtomicReference<>();
 
         Day.Info.ToString toString = DayInfoToString.DEFAULT;
@@ -196,25 +196,27 @@ public class Demo {
 //
 //        }
 
-        for ( int i = 0; i < 3; i++ ) {
-            Thread.sleep(1000);
-            Platform.runLater(() -> {
-                width.set(width.get() + 60);
-                stageRef.get().sizeToScene();
-            });
-
-        }
-
-        Thread.sleep(1000);
-
-
-        for ( int i = 0; i < 3; i++ ) {
-            Thread.sleep(1000);
-            Platform.runLater(() -> {
-                width.set(width.get() - 60);
-                stageRef.get().sizeToScene();
-            });
-        }
+//        for ( int i = 0; i < 3; i++ ) {
+//            Thread.sleep(1000);
+//            Platform.runLater(() -> {
+//                width.set(width.get() + 60);
+//                stageRef.get().sizeToScene();
+//                System.out.println("width +");
+//            });
+//
+//        }
+//
+//        Thread.sleep(1000);
+//
+//
+//        for ( int i = 0; i < 3; i++ ) {
+//            Thread.sleep(1000);
+//            Platform.runLater(() -> {
+//                width.set(width.get() - 60);
+//                stageRef.get().sizeToScene();
+//                System.out.println("width -");
+//            });
+//        }
     }
 
 }
